@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  php:
+    image: php:8.2-fpm
+    volumes:
+      - ./:/var/www/html
+    working_dir: /var/www/html
+    depends_on:
+      - postgres
+    networks:
+      - paymentnetwork
+  webserver:
+    image: nginx:latest
+    command: /bin/bash -c "sleep 10 && nginx -g 'daemon off;'"
+    volumes:
+      - ./:/var/www/html
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      - php
+    networks:
+      - paymentnetwork
+  postgres:
+    image: postgres:latest
+    environment:
+      PGPASSWORD: "${DB_PASSWORD:-secret}"
+      POSTGRES_DB: "${DB_DATABASE:-symfony}"
+      POSTGRES_USER: "${DB_USERNAME:-symfony}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-secret}"
+    ports:
+      - "${FORWARD_DB_PORT:-5432}:5432"
+    volumes:
+      - "pgsql:/var/lib/postgresql/data"
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - "-q"
+        - "-d"
+        - "${DB_DATABASE}"
+        - "-U"
+        - "${DB_USERNAME}"
+      retries: 3
+      timeout: 5s
+    networks:
+      - paymentnetwork
+  composer:
+    image: composer:latest
+    command: install
+    volumes:
+      - ./:/app
+networks:
+  paymentnetwork:
+    driver: bridge
+volumes:
+  pgsql:
+    driver: local
